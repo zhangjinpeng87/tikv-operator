@@ -166,7 +166,7 @@ if ! $KUBECTL_BIN get ns "$NAMESPACE" &>/dev/null; then
 fi
 
 echo "info: installing crds"
-$KUBECTL_BIN apply -f manifests/crd.v1beta1.yaml
+$KUBECTL_BIN apply -f manifests/crd-combined.yaml
 
 echo "info: deploying tikv-operator"
 helm_args=(

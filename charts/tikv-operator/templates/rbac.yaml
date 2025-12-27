@@ -5,7 +5,7 @@ metadata:
   name: tikv-operator-controller-manager
 rules:
 - apiGroups:
-  - tikv.org
+  - core.tikv.org
   resources:
   - '*'
   verbs:

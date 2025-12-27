@@ -11,22 +11,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package scheme
+// +k8s:deepcopy-gen=package,register
 
-import (
-	"k8s.io/apimachinery/pkg/runtime"
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
-
-	"github.com/zhangjinpeng87/tikv-operator/pkg/apis/core/v1alpha1"
-)
-
-var (
-	// Scheme is the runtime.Scheme to which all tikv-operator api types are registered.
-	Scheme = runtime.NewScheme()
-)
-
-func init() {
-	utilruntime.Must(clientgoscheme.AddToScheme(Scheme))
-	utilruntime.Must(v1alpha1.Install(Scheme))
-}
+// Package v1alpha1 is the v1alpha1 version of the API.
+// +groupName=core.tikv.org
+package v1alpha1

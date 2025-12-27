@@ -18,6 +18,10 @@ OS ?= $(shell ${GO} env GOOS)
 IMAGE_REPO ?= localhost:5000/tikv
 IMAGE_TAG ?= latest
 
+ROOT = $(CURDIR)
+API_PATH = $(ROOT)/pkg/apis/core/v1alpha1
+BOILERPLATE_FILE = $(ROOT)/hack/boilerplate/boilerplate.generatego.txt
+
 ALL_TARGETS := cmd/tikv-controller-manager cmd/pd-discovery
 GIT_VERSION = $(shell ./hack/version.sh | awk -F': ' '/^GIT_VERSION:/ {print $$2}')
 
@@ -57,3 +61,27 @@ image: build
 e2e-examples:
 	hack/e2e-examples.sh
 .PHONY: e2e-examples
+
+.PHONY: codegen
+codegen:
+	@echo "Generating register.go..."
+	cd $(API_PATH) && register-gen \
+		--output-file=zz_generated.register.go \
+		--go-header-file=$(BOILERPLATE_FILE) \
+		.
+	@echo "Generating deepcopy.go..."
+	cd $(API_PATH) && deepcopy-gen \
+		--output-file=zz_generated.deepcopy.go \
+		--go-header-file=$(BOILERPLATE_FILE) \
+		.
+	@echo "Code generation completed!"
+
+.PHONY: crd
+crd:
+	@echo "Generating CRDs using controller-gen..."
+	@mkdir -p manifests/crd
+	controller-gen crd:generateEmbeddedObjectMeta=true output:crd:artifacts:config=manifests/crd paths=./pkg/apis/core/v1alpha1/...
+	@echo "CRD generation completed!"
+	@echo "Generated CRDs are in manifests/crd/"
+	@echo "NOTE: controller-gen generates v1 CRDs (modern format for Kubernetes 1.16+)"
+	@echo "      v1beta1 CRDs are deprecated and removed in Kubernetes 1.22+"

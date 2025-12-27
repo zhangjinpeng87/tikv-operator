@@ -15,7 +15,9 @@ package pdapi
 
 import (
 	"bytes"
+	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -27,9 +29,8 @@ import (
 	"github.com/pingcap/kvproto/pkg/metapb"
 	"github.com/pingcap/kvproto/pkg/pdpb"
 	"github.com/pingcap/pd/pkg/typeutil"
-	"github.com/tikv/tikv-operator/pkg/httputil"
-	"github.com/tikv/tikv-operator/pkg/util"
-	"github.com/tikv/tikv-operator/pkg/util/crypto"
+	"github.com/zhangjinpeng87/tikv-operator/pkg/httputil"
+	corev1 "k8s.io/api/core/v1"
 	types "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/klog"
@@ -64,16 +65,60 @@ func NewDefaultPDControl(kubeCli kubernetes.Interface) PDControlInterface {
 	return &defaultPDControl{kubeCli: kubeCli, pdClients: map[string]PDClient{}, pdEtcdClients: map[string]PDEtcdClient{}}
 }
 
-// GetTLSConfig returns *tls.Config for given TiDB cluster.
+// GetTLSConfig returns *tls.Config for given TiKV cluster.
 // It loads in-cluster root ca if caCert is empty.
 func GetTLSConfig(kubeCli kubernetes.Interface, namespace Namespace, tcName string, caCert []byte) (*tls.Config, error) {
-	secretName := util.ClusterClientTLSSecretName(tcName)
-	secret, err := kubeCli.CoreV1().Secrets(string(namespace)).Get(secretName, types.GetOptions{})
+	secretName := fmt.Sprintf("%s-cluster-client-secret", tcName)
+	secret, err := kubeCli.CoreV1().Secrets(string(namespace)).Get(context.Background(), secretName, types.GetOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("unable to load certificates from secret %s/%s: %v", namespace, secretName, err)
 	}
 
-	return crypto.LoadTlsConfigFromSecret(secret, caCert)
+	return loadTLSConfigFromSecret(secret, caCert)
+}
+
+// loadTLSConfigFromSecret loads TLS config from Kubernetes secret
+func loadTLSConfigFromSecret(secret *corev1.Secret, caCert []byte) (*tls.Config, error) {
+	var cert, key []byte
+	var ok bool
+
+	if cert, ok = secret.Data["tls.crt"]; !ok {
+		return nil, fmt.Errorf("tls.crt not found in secret %s/%s", secret.Namespace, secret.Name)
+	}
+	if key, ok = secret.Data["tls.key"]; !ok {
+		return nil, fmt.Errorf("tls.key not found in secret %s/%s", secret.Namespace, secret.Name)
+	}
+
+	clientCert, err := tls.X509KeyPair(cert, key)
+	if err != nil {
+		return nil, fmt.Errorf("unable to load client cert from secret %s/%s: %v", secret.Namespace, secret.Name, err)
+	}
+
+	var rootCAs *x509.CertPool
+	if caCert == nil || len(caCert) == 0 {
+		if ca, ok := secret.Data["ca.crt"]; ok {
+			rootCAs = x509.NewCertPool()
+			if !rootCAs.AppendCertsFromPEM(ca) {
+				return nil, fmt.Errorf("unable to append ca.crt from secret %s/%s", secret.Namespace, secret.Name)
+			}
+		} else {
+			// Use system certs if no CA provided
+			rootCAs, err = x509.SystemCertPool()
+			if err != nil {
+				return nil, fmt.Errorf("unable to load system cert pool: %v", err)
+			}
+		}
+	} else {
+		rootCAs = x509.NewCertPool()
+		if !rootCAs.AppendCertsFromPEM(caCert) {
+			return nil, fmt.Errorf("unable to append provided ca cert")
+		}
+	}
+
+	return &tls.Config{
+		RootCAs:      rootCAs,
+		Certificates: []tls.Certificate{clientCert},
+	}, nil
 }
 
 func (pdc *defaultPDControl) GetPDEtcdClient(namespace Namespace, tcName string, tlsEnabled bool) (PDEtcdClient, error) {
@@ -270,7 +315,7 @@ type StoresInfo struct {
 }
 
 // MembersInfo is PD members info returned from PD RESTful interface
-//type Members map[string][]*pdpb.Member
+// type Members map[string][]*pdpb.Member
 type MembersInfo struct {
 	Header     *pdpb.ResponseHeader `json:"header,omitempty"`
 	Members    []*pdpb.Member       `json:"members,omitempty"`

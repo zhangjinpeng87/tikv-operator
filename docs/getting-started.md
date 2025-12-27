@@ -57,71 +57,116 @@ Before deployment, make sure the following requirements are satisfied:
 2. Install CRD
 
     ```shell
-    kubectl apply -f https://raw.githubusercontent.com/tikv/tikv-operator/master/manifests/crd.v1beta1.yaml
+    kubectl apply -f manifests/crd/
     ```
 
-3. Install tikv-operator
+3. Install tikv-operator (using the local chart from this repository)
 
-    1. Add the PingCAP Repository:
+    If you already cloned this repository, you can install directly from the included Helm chart.
+    If not, clone it first:
 
-        ```shell
-        helm repo add pingcap https://charts.pingcap.org/
-        ```
+    ```shell
+    git clone https://github.com/zhangjinpeng87/tikv-operator.git
+    cd tikv-operator
+    ```
 
-    2. Create a namespace for TiKV Operator:
-
-        ```shell
-        kubectl create ns tikv-operator
-        helm install --namespace tikv-operator tikv-operator pingcap/tikv-operator --version v0.1.0
-        ```
-
-    3. Install TiKV Operator:
+    1. Create a namespace for TiKV Operator:
 
         ```shell
-        helm install --namespace tikv-operator tikv-operator pingcap/tikv-operator --version v0.1.0
+        kubectl create ns tikv-operator-system
         ```
+        
+        This creates a dedicated Kubernetes namespace called `tikv-operator-system` where the operator will be deployed.
+        Namespaces provide isolation and organization for Kubernetes resources.
+        
+        **Note**: You can use any namespace name you prefer. We use `tikv-operator-system` here to clearly 
+        distinguish it from other parameters in the installation command.
 
-    4. Confirm that the TiKV Operator components are running:
+    2. Install TiKV Operator using the local Helm chart:
 
         ```shell
-        kubectl --namespace tikv-operator get pods
+        helm install --namespace tikv-operator-system tikv-operator ./charts/tikv-operator
         ```
+        
+        This command installs the TiKV Operator. Breaking it down:
+        - `helm install`: Helm command to install a chart
+        - `--namespace tikv-operator-system`: Specifies the target namespace (where resources will be created)
+        - `tikv-operator`: The release name (how you'll reference this Helm installation)
+        - `./charts/tikv-operator`: The local chart path in this repository
+
+    3. Confirm that the TiKV Operator components are running:
+
+        ```shell
+        kubectl --namespace tikv-operator-system get pods
+        ```
+        
+        This command lists all pods in the `tikv-operator-system` namespace. You should see the 
+        `tikv-controller-manager` pod running. Wait until it shows `STATUS: Running` and 
+        `READY: 1/1` before proceeding to the next step.
 
 ## Step 3: Deploy TiKV Cluster
 
-1. Deploy the TiKV Cluster:
+1. Deploy the TiKV Cluster using the v2 API:
 
+    First, create the Cluster:
     ```shell
-    curl -LO https://raw.githubusercontent.com/tikv/tikv-operator/master/examples/basic/tikv-cluster.yaml
-    kubectl apply -f tikv-cluster.yaml
+    curl -LO https://raw.githubusercontent.com/zhangjinpeng87/tikv-operator/master/examples/v2/basic/cluster.yaml
+    kubectl apply -f cluster.yaml
+    ```
+
+    Then, create the PDGroup:
+    ```shell
+    curl -LO https://raw.githubusercontent.com/zhangjinpeng87/tikv-operator/master/examples/v2/basic/pd-group.yaml
+    kubectl apply -f pd-group.yaml
+    ```
+
+    Finally, create the TiKVGroup:
+    ```shell
+    curl -LO https://raw.githubusercontent.com/zhangjinpeng87/tikv-operator/master/examples/v2/basic/tikv-group.yaml
+    kubectl apply -f tikv-group.yaml
     ```
 
     Expected output:
 
     ```
-    tikvcluster.tikv.org/basic created
+    cluster.core.tikv.org/basic created
+    pdgroup.core.tikv.org/pd created
+    tikvgroup.core.tikv.org/tikv created
     ```
 
-2. Wait for it to be ready:
+    **Alternative**: You can also clone the repository and apply all files at once:
 
     ```shell
-    kubectl wait --for=condition=Ready --timeout 10m tikvcluster/basic
+    git clone https://github.com/zhangjinpeng87/tikv-operator.git
+    cd tikv-operator/examples/v2/basic
+    kubectl apply -f .
     ```
 
-    It may takes several minutes as it needs to pull images from Docker Hub.
-
-3. Check the progress with the following command:
+2. Wait for the cluster to be ready:
 
     ```shell
-    kubect get pods -o wide
+    kubectl wait --for=condition=Available --timeout 10m cluster/basic
     ```
 
-If the network connection to the Docker Hub is slow, you can try this example which uses images hosted in Alibaba Cloud:
+    It may take several minutes as it needs to pull images from Docker Hub.
 
-```shell
-curl -LO https://raw.githubusercontent.com/tikv/tikv-operator/master/examples/basic-cn/tikv-cluster.yaml
-kubectl apply -f tikv-cluster.yaml
-```
+3. Check the progress with the following commands:
+
+    ```shell
+    # Check cluster status
+    kubectl get cluster basic
+    
+    # Check PDGroup and PD instances
+    kubectl get pdgroup pd
+    kubectl get pd
+    
+    # Check TiKVGroup and TiKV instances
+    kubectl get tikvgroup tikv
+    kubectl get tikv
+    
+    # Check all pods
+    kubectl get pods -o wide
+    ```
 
 ## Step 4: Access the PD endpoint
 
