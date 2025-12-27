@@ -5,7 +5,7 @@
 replicaCount: 1
 
 image:
-  repository: pingcap/tikv-operator
+  repository: zhangjinpeng87/tikv-operator
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
   # tag: latest

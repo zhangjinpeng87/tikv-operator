@@ -1,0 +1,21 @@
+apiVersion: core.tikv.org/v1alpha1
+kind: PDGroup
+metadata:
+  name: pd
+spec:
+  cluster:
+    name: basic
+  replicas: 3
+  template:
+    spec:
+      version: v8.5.4
+      image: pingcap/pd
+      resources:
+        cpu: "2"
+        memory: "4Gi"
+      volumes:
+        - name: data
+          storage: "10Gi"
+          mounts:
+            - type: data
+

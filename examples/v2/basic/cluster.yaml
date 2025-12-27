@@ -1,0 +1,7 @@
+apiVersion: core.tikv.org/v1alpha1
+kind: Cluster
+metadata:
+  name: basic
+spec:
+  paused: false
+

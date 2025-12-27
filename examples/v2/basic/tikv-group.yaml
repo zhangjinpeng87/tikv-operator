@@ -1,0 +1,21 @@
+apiVersion: core.tikv.org/v1alpha1
+kind: TiKVGroup
+metadata:
+  name: tikv
+spec:
+  cluster:
+    name: basic
+  replicas: 3
+  template:
+    spec:
+      version: v8.5.4
+      image: pingcap/tikv
+      resources:
+        cpu: "2"
+        memory: "4Gi"
+      volumes:
+        - name: data
+          storage: "20Gi"
+          mounts:
+            - type: data
+

@@ -18,8 +18,8 @@ import (
 	"crypto/tls"
 	"time"
 
-	etcdclientv3 "github.com/coreos/etcd/clientv3"
-	etcdclientv3util "github.com/coreos/etcd/clientv3/clientv3util"
+	etcdclientv3 "go.etcd.io/etcd/client/v3"
+	etcdclientv3util "go.etcd.io/etcd/client/v3/clientv3util"
 )
 
 type PDEtcdClient interface {
@@ -59,10 +59,9 @@ func (pec *pdEtcdClient) PutKey(key, value string) error {
 func (pec *pdEtcdClient) DeleteKey(key string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), pec.timeout)
 	defer cancel()
-	kvc := etcdclientv3.NewKV(pec.etcdClient)
 
 	// perform a delete only if key already exists
-	_, err := kvc.Txn(ctx).
+	_, err := pec.etcdClient.Txn(ctx).
 		If(etcdclientv3util.KeyExists(key)).
 		Then(etcdclientv3.OpDelete(key)).
 		Commit()

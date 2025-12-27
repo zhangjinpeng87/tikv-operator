@@ -37,7 +37,6 @@ spec:
           - /usr/local/bin/tikv-controller-manager
           {{- if .Values.image.args }}
           args:
-            - "--pd-discovery-image={{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
             {{- toYaml .Values.image.args | nindent 12 }}
           {{- end }}
           ports:
